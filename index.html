@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDI File Splitter</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+     <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-0"><i class="fas fa-cut me-2"></i>Hachette EDI Order File Splitter</h2>
+                            <small>Split EDI order files into two equal parts</small>
+                        </div>
+                        <button id="clearBtn" class="btn btn-outline-light btn-sm">
+                            <i class="fas fa-times me-1"></i>Clear
+                        </button>
+                    </div>
+                    
+                    <div class="card-body">
+                        <!-- File Upload Section -->
+                        <div class="mb-4">
+                            <label for="fileInput" class="form-label">
+                                <i class="fas fa-upload me-2"></i>Select EDI File (.txt)
+                            </label>
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="fileInput" 
+                                   accept=".txt"
+                                   aria-describedby="fileHelp">
+                            <div id="fileHelp" class="form-text">
+                                Choose an EDI file starting with $$HDR and containing D1 detail records.
+                            </div>
+                        </div>
+
+                        <!-- Process Button -->
+                        <div class="mb-4">
+                            <button id="processBtn" 
+                                    class="btn btn-success btn-lg w-100" 
+                                    disabled>
+                                <i class="fas fa-cog me-2"></i>Split File
+                            </button>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div id="progressContainer" class="mb-4" style="display: none;">
+                            <div class="progress">
+                                <div id="progressBar" 
+                                     class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" 
+                                     style="width: 0%">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status Messages -->
+                        <div id="statusContainer"></div>
+
+                        <!-- Results Section -->
+                        <div id="resultsContainer" style="display: none;">
+                            <hr>
+                            <h5><i class="fas fa-download me-2"></i>Download Split Files</h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <button id="downloadPart1" class="btn btn-outline-primary w-100">
+                                        <i class="fas fa-file-download me-2"></i>
+                                        Download Part 1
+                                        <br><small class="text-muted" id="part1Info"></small>
+                                    </button>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <button id="downloadPart2" class="btn btn-outline-primary w-100">
+                                        <i class="fas fa-file-download me-2"></i>
+                                        Download Part 2
+                                        <br><small class="text-muted" id="part2Info"></small>
+                                    </button>
+                                </div>
+                            </div>
+                            <button id="resetBtn" class="btn btn-secondary w-100 mt-2">
+                                <i class="fas fa-redo me-2"></i>Process Another File
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card-footer text-muted">
+                        <small>
+                            <i class="fas fa-info-circle me-1"></i>
+                            This tool splits EDI files while maintaining proper header and footer structure with correct record counts.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
