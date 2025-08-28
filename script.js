@@ -121,12 +121,54 @@ class EDIFileSplitter {
     splitEDIFile(content, originalFilename) {
         const lines = content.split(/\r?\n/);
         
+        console.log('Debugging file content...');
+        console.log('Total lines:', lines.length);
+        console.log('First 5 lines:');
+        lines.slice(0, 5).forEach((line, index) => {
+            console.log(`Line ${index + 1}: "${line}"`);
+        });
+        
+        // Extract header lines from original file
+        let hdrLine = '';
+        let h1Line = '';
+        let h2Line = '';
+        let eofLine = '';
+        
+        // Find header and footer lines
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('$$HDR')) {
+                hdrLine = line;
+                console.log('Found $$HDR line:', line.substring(0, 30) + '...');
+            } else if (trimmedLine.startsWith('H1')) {
+                h1Line = line;
+                console.log('Found H1 line');
+            } else if (trimmedLine.startsWith('H2')) {
+                h2Line = line;
+                console.log('Found H2 line');
+            } else if (trimmedLine.startsWith('$$EOF')) {
+                eofLine = line;
+                console.log('Found $$EOF line');
+            }
+        }
+        
+        // Validate required lines exist
+        if (!hdrLine) {
+            console.error('$$HDR line not found. First line was:', lines[0]);
+            throw new Error('$$HDR line not found in file');
+        }
+        if (!h1Line) throw new Error('H1 line not found in file');
+        if (!h2Line) throw new Error('H2 line not found in file');
+        if (!eofLine) throw new Error('$$EOF line not found in file');
+        
         // Find detail lines (D1 records)
-        const detailLines = lines.filter(line => line.startsWith('D1'));
+        const detailLines = lines.filter(line => line.trim().startsWith('D1'));
         
         if (detailLines.length === 0) {
             throw new Error('No D1 detail records found in the file');
         }
+
+        console.log(`Found ${detailLines.length} D1 records`);
 
         // Calculate split point
         const totalDetails = detailLines.length;
@@ -135,9 +177,9 @@ class EDIFileSplitter {
         const part1Details = detailLines.slice(0, splitPoint);
         const part2Details = detailLines.slice(splitPoint);
 
-        // Generate file contents
-        const part1Content = this.generateEDIContent(part1Details);
-        const part2Content = this.generateEDIContent(part2Details);
+        // Generate file contents with original headers
+        const part1Content = this.generateEDIContent(part1Details, hdrLine, h1Line, h2Line, eofLine);
+        const part2Content = this.generateEDIContent(part2Details, hdrLine, h1Line, h2Line, eofLine);
 
         return {
             part1Content,
@@ -148,23 +190,25 @@ class EDIFileSplitter {
         };
     }
 
-    generateEDIContent(detailLines) {
+    generateEDIContent(detailLines, hdrLine, h1Line, h2Line, eofLine) {
         const totalCount = detailLines.length + 2; // +2 for H1 and H2 header lines
         
         let content = '';
         
-        // Add header lines
-        content += '$$HDRTFUK  0023602   20250827181254\n';
-        content += 'H17000799572     20250827                              C FT0818NM6KS                        STANDARD N                              000000000000000000000000000000000000000000000000000000000      TFUK_7000799572.pdf                       GBP                                                                                                              \n';
-        content += 'H27000799572     ST0071007686               Forward Transit                                   Portcentric House                                  Mike Sibley PO FT0818NM6KS                       Thurrock Park Way                                 APecommerce@FARCORNERINC.COM                      TILBURY                         RM18 7HD GBR410-423-0870        \n';
+        // Add original header lines
+        content += hdrLine + '\n';
+        content += h1Line + '\n';
+        content += h2Line + '\n';
         
         // Add detail lines
         detailLines.forEach(line => {
             content += line + '\n';
         });
         
-        // Add footer with correct count
-        content += `$$EOFTFUK  0023602   20250827181254${totalCount.toString().padStart(7, '0')}\n`;
+        // Generate footer based on original EOF line but with updated count
+        // Extract the base part of the EOF line and append new count
+        const eofBase = eofLine.substring(0, eofLine.length - 7); // Remove last 7 digits
+        content += `${eofBase}${totalCount.toString().padStart(7, '0')}\n`;
         
         return content;
     }
