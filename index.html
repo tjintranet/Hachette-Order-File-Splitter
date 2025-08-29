@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EDI File Splitter</title>
+    <title>EDI File Manager</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
@@ -15,12 +15,12 @@
 <body class="bg-light">
     <div class="container py-5">
         <div class="row justify-content-center">
-            <div class="col-lg-8">
+            <div class="col-lg-10">
                 <div class="card shadow">
                     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                         <div>
-                            <h2 class="mb-0"><i class="fas fa-cut me-2"></i>Hachette EDI Order File Splitter</h2>
-                            <small>Split EDI order files into two equal parts</small>
+                            <h2 class="mb-0"><i class="fas fa-file-alt me-2"></i>Hachette EDI File Manager</h2>
+                            <small>Split EDI files or remove specific orders before processing</small>
                         </div>
                         <button id="clearBtn" class="btn btn-outline-light btn-sm">
                             <i class="fas fa-times me-1"></i>Clear
@@ -43,12 +43,71 @@
                             </div>
                         </div>
 
-                        <!-- Process Button -->
-                        <div class="mb-4">
-                            <button id="processBtn" 
-                                    class="btn btn-success btn-lg w-100" 
-                                    disabled>
-                                <i class="fas fa-cog me-2"></i>Split File
+                        <!-- Operation Mode Selection -->
+                        <div class="mb-4" id="modeSelection" style="display: none;">
+                            <h5><i class="fas fa-cogs me-2"></i>Choose Operation</h5>
+                            <div class="btn-group w-100" role="group" aria-label="Operation mode">
+                                <input type="radio" class="btn-check" name="operationMode" id="splitMode" value="split" checked>
+                                <label class="btn btn-outline-primary" for="splitMode">
+                                    <i class="fas fa-cut me-1"></i>Split File
+                                </label>
+                                <input type="radio" class="btn-check" name="operationMode" id="removeMode" value="remove">
+                                <label class="btn btn-outline-warning" for="removeMode">
+                                    <i class="fas fa-minus-circle me-1"></i>Remove Orders
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Split Mode Section -->
+                        <div id="splitModeSection" class="mb-4">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                This will split your EDI file into two equal parts with proper record counts.
+                            </div>
+                            <button id="splitBtn" class="btn btn-success btn-lg w-100" disabled>
+                                <i class="fas fa-cut me-2"></i>Split File into Two Parts
+                            </button>
+                        </div>
+
+                        <!-- Remove Orders Mode Section -->
+                        <div id="removeModeSection" class="mb-4" style="display: none;">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                This will permanently remove the selected orders from your file. Make sure you have a backup.
+                            </div>
+                            
+                            <!-- Order Analysis -->
+                            <div id="orderAnalysis" style="display: none;">
+                                <h6><i class="fas fa-search me-2"></i>Orders Found in File</h6>
+                                <div class="mb-3">
+                                    <input type="text" class="form-control" id="orderSearch" placeholder="Search orders by number...">
+                                </div>
+                                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                    <table class="table table-sm table-striped">
+                                        <thead class="table-dark sticky-top">
+                                            <tr>
+                                                <th width="50">
+                                                    <input type="checkbox" id="selectAllOrders" class="form-check-input">
+                                                </th>
+                                                <th>Order Number</th>
+                                                <th>Record Count</th>
+                                                <th>First Record #</th>
+                                                <th>Last Record #</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="ordersTableBody">
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="mt-3">
+                                    <button id="removeOrdersBtn" class="btn btn-warning w-100  mb-3" disabled>
+                                        <i class="fas fa-minus-circle me-3"></i>Remove Selected Orders
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button id="analyzeBtn" class="btn btn-info btn w-100" disabled>
+                                <i class="fas fa-search me-3"></i>Analyze File & Show Orders
                             </button>
                         </div>
 
@@ -69,22 +128,31 @@
                         <!-- Results Section -->
                         <div id="resultsContainer" style="display: none;">
                             <hr>
-                            <h5><i class="fas fa-download me-2"></i>Download Split Files</h5>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <button id="downloadPart1" class="btn btn-outline-primary w-100">
-                                        <i class="fas fa-file-download me-2"></i>
-                                        Download Part 1
-                                        <br><small class="text-muted" id="part1Info"></small>
-                                    </button>
+                            <h5><i class="fas fa-download me-2"></i>Download Files</h5>
+                            <div id="splitResults" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <button id="downloadPart1" class="btn btn-outline-primary w-100">
+                                            <i class="fas fa-file-download me-2"></i>
+                                            Download Part 1
+                                            <br><small class="text-muted" id="part1Info"></small>
+                                        </button>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <button id="downloadPart2" class="btn btn-outline-primary w-100">
+                                            <i class="fas fa-file-download me-2"></i>
+                                            Download Part 2
+                                            <br><small class="text-muted" id="part2Info"></small>
+                                        </button>
+                                    </div>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <button id="downloadPart2" class="btn btn-outline-primary w-100">
-                                        <i class="fas fa-file-download me-2"></i>
-                                        Download Part 2
-                                        <br><small class="text-muted" id="part2Info"></small>
-                                    </button>
-                                </div>
+                            </div>
+                            <div id="removeResults" style="display: none;">
+                                <button id="downloadCleaned" class="btn btn-outline-success w-100 mb-3">
+                                    <i class="fas fa-file-download me-2"></i>
+                                    Download Cleaned File
+                                    <br><small class="text-muted" id="cleanedInfo"></small>
+                                </button>
                             </div>
                             <button id="resetBtn" class="btn btn-secondary w-100 mt-2">
                                 <i class="fas fa-redo me-2"></i>Process Another File
@@ -95,7 +163,7 @@
                     <div class="card-footer text-muted">
                         <small>
                             <i class="fas fa-info-circle me-1"></i>
-                            This tool splits EDI files while maintaining proper header and footer structure with correct record counts.
+                            This tool can split EDI files or remove specific orders while maintaining proper header and footer structure with correct record counts.
                         </small>
                     </div>
                 </div>
