@@ -331,15 +331,17 @@ class EDIFileManager {
     }
 
     updateFooterCount(lines) {
-        const detailCount = lines.filter(line => line.trim().startsWith('D1')).length;
-        const totalCount = detailCount + 2; // +2 for H1 and H2 lines
+        // Count all non-empty lines except the EOF line itself, then subtract 1 more for the import application
+        const nonEmptyLines = lines.filter(line => line.trim() !== '');
+        const totalLineCount = nonEmptyLines.length - 1; // -1 to exclude the EOF line from the count
+        const importCount = totalLineCount - 1; // -1 more for the import application requirement
 
         // Update the footer line
         const updatedLines = lines.map(line => {
             const trimmedLine = line.trim();
-            if (trimmedLine.startsWith('$$EOF')) {
+            if (trimmedLine.startsWith('$EOF')) {
                 const eofBase = line.substring(0, line.length - 7);
-                return `${eofBase}${totalCount.toString().padStart(7, '0')}`;
+                return `${eofBase}${importCount.toString().padStart(7, '0')}`;
             }
             return line;
         });
@@ -440,8 +442,6 @@ class EDIFileManager {
     }
 
     generateEDIContent(detailLines, hdrLine, h1Line, h2Line, eofLine) {
-        const totalCount = detailLines.length + 2; // +2 for H1 and H2 header lines
-        
         let content = '';
         
         // Add original header lines
@@ -454,9 +454,13 @@ class EDIFileManager {
             content += line + '\n';
         });
         
+        // Count all content lines (excluding the EOF line we're about to add), then subtract 1 for import application
+        const contentLines = content.split('\n').filter(line => line.trim() !== '');
+        const importCount = contentLines.length - 1; // -1 for import application requirement
+        
         // Generate footer based on original EOF line but with updated count
         const eofBase = eofLine.substring(0, eofLine.length - 7); // Remove last 7 digits
-        content += `${eofBase}${totalCount.toString().padStart(7, '0')}\n`;
+        content += `${eofBase}${importCount.toString().padStart(7, '0')}\n`;
         
         return content;
     }
