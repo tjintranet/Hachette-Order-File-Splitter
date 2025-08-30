@@ -1,4 +1,4 @@
-// Enhanced EDI File Manager JavaScript
+// Enhanced EDI File Manager JavaScript with PPO Rejection File Generation
 class EDIFileManager {
     constructor() {
         this.fileInput = document.getElementById('fileInput');
@@ -17,21 +17,28 @@ class EDIFileManager {
         this.downloadPart1 = document.getElementById('downloadPart1');
         this.downloadPart2 = document.getElementById('downloadPart2');
         this.downloadCleaned = document.getElementById('downloadCleaned');
+        this.downloadRejection = document.getElementById('downloadRejection');
         this.resetBtn = document.getElementById('resetBtn');
         this.clearBtn = document.getElementById('clearBtn');
         this.part1Info = document.getElementById('part1Info');
         this.part2Info = document.getElementById('part2Info');
         this.cleanedInfo = document.getElementById('cleanedInfo');
+        this.rejectionInfo = document.getElementById('rejectionInfo');
         this.orderAnalysis = document.getElementById('orderAnalysis');
         this.ordersTableBody = document.getElementById('ordersTableBody');
         this.orderSearch = document.getElementById('orderSearch');
         this.selectAllOrders = document.getElementById('selectAllOrders');
+        this.rejectionReason = document.getElementById('rejectionReason');
+        this.statusCode = document.getElementById('statusCode');
+        this.generateRejectionFile = document.getElementById('generateRejectionFile');
+        this.rejectionDownloadSection = document.getElementById('rejectionDownloadSection');
 
         this.splitFiles = {
             part1: null,
             part2: null
         };
         this.cleanedFile = null;
+        this.rejectionFile = null;
         this.currentFileContent = null;
         this.currentFileName = null;
         this.orders = [];
@@ -47,6 +54,7 @@ class EDIFileManager {
         this.downloadPart1.addEventListener('click', () => this.downloadFile('part1'));
         this.downloadPart2.addEventListener('click', () => this.downloadFile('part2'));
         this.downloadCleaned.addEventListener('click', () => this.downloadFile('cleaned'));
+        this.downloadRejection.addEventListener('click', () => this.downloadFile('rejection'));
         this.resetBtn.addEventListener('click', () => this.reset());
         this.clearBtn.addEventListener('click', () => this.reset());
         this.orderSearch.addEventListener('input', () => this.filterOrders());
@@ -126,6 +134,7 @@ class EDIFileManager {
         this.resultsContainer.style.display = 'none';
         this.splitResults.style.display = 'none';
         this.removeResults.style.display = 'none';
+        this.rejectionDownloadSection.style.display = 'none';
     }
 
     readFileContent(file) {
@@ -177,10 +186,9 @@ class EDIFileManager {
             if (trimmedLine.startsWith('D1')) {
                 // Extract order number from D1 line
                 // Format: D1{order_number}     {order_id}              {record_num}
-                // Extract the order number (7000799574) from the D1 prefix
                 const orderNumber = trimmedLine.substring(2).split(/\s+/)[0];
                 if (orderNumber) {
-                    const orderId = orderNumber; // Use the order number as the ID
+                    const orderId = orderNumber;
                     
                     if (!orders.has(orderId)) {
                         orders.set(orderId, {
@@ -196,7 +204,8 @@ class EDIFileManager {
                     order.lines.push({
                         content: line,
                         lineNumber: index,
-                        recordNumber: trimmedLine.split(/\s+/)[2] || ''
+                        recordNumber: trimmedLine.split(/\s+/)[2] || '',
+                        fullLine: trimmedLine
                     });
                     order.recordCount++;
                     
@@ -275,11 +284,64 @@ class EDIFileManager {
         }
     }
 
+    generatePPOFilename() {
+        const now = new Date();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const year = String(now.getFullYear()).slice(-2);
+        const hour = String(now.getHours()).padStart(2, '0');
+        const minute = String(now.getMinutes()).padStart(2, '0');
+        
+        return `PPO.M${month}${day}${year}${hour}${minute}.PPR`;
+    }
+
+    extractISBNFromLine(line) {
+        // Try to extract ISBN from D1 line
+        // This is a best-guess approach based on common EDI patterns
+        const parts = line.split(/\s+/);
+        
+        // Look for 13-digit ISBN (most common)
+        for (const part of parts) {
+            if (/^97[89]\d{10}$/.test(part)) {
+                return part;
+            }
+        }
+        
+        // Look for 10-digit ISBN
+        for (const part of parts) {
+            if (/^\d{9}[\dX]$/.test(part)) {
+                return part;
+            }
+        }
+        
+        // If no ISBN pattern found, return a placeholder or empty string
+        return '';
+    }
+
+    generatePPOContent(removedOrders) {
+        const rejectionReason = this.rejectionReason.value || 'Order cancelled';
+        const statusCode = this.statusCode.value || 'IR';
+        
+        let csvContent = '';
+        
+        removedOrders.forEach(order => {
+            order.lines.forEach(lineData => {
+                const isbn = this.extractISBNFromLine(lineData.fullLine);
+                const recordNumber = lineData.recordNumber || '00001';
+                
+                csvContent += `${order.orderId},${recordNumber},${isbn},${statusCode},${rejectionReason}\n`;
+            });
+        });
+        
+        return csvContent;
+    }
+
     async removeSelectedOrders() {
         const checkedBoxes = document.querySelectorAll('.order-checkbox:checked');
         if (checkedBoxes.length === 0) return;
 
         const orderIdsToRemove = Array.from(checkedBoxes).map(cb => cb.dataset.orderId);
+        const removedOrders = this.orders.filter(order => orderIdsToRemove.includes(order.orderId));
         
         try {
             this.showStatus('Removing selected orders...', 'info');
@@ -295,7 +357,6 @@ class EDIFileManager {
             lines.forEach(line => {
                 const trimmedLine = line.trim();
                 if (trimmedLine.startsWith('D1')) {
-                    // Extract order number from D1 line (the number immediately after D1)
                     const orderNumber = trimmedLine.substring(2).split(/\s+/)[0];
                     
                     if (!orderIdsToRemove.includes(orderNumber)) {
@@ -313,11 +374,22 @@ class EDIFileManager {
             // Update the footer with new count
             const newContent = this.updateFooterCount(cleanedLines);
             
-            // Create download file
+            // Create cleaned EDI file
             this.cleanedFile = {
                 blob: new Blob([newContent], { type: 'text/plain' }),
-                filename: this.currentFileName.replace(/\.txt$/i, '_cleaned.txt')
+                filename: this.currentFileName.replace(/\.txt$/i, '')
             };
+
+            // Generate PPO rejection file if enabled
+            if (this.generateRejectionFile.checked) {
+                const ppoContent = this.generatePPOContent(removedOrders);
+                this.rejectionFile = {
+                    blob: new Blob([ppoContent], { type: 'text/plain' }),
+                    filename: this.generatePPOFilename()
+                };
+                this.rejectionDownloadSection.style.display = 'block';
+                this.rejectionInfo.textContent = `${removedOrders.length} orders, ${removedCount} records`;
+            }
 
             this.showProgress(100);
             this.showStatus(`Successfully removed ${orderIdsToRemove.length} orders (${removedCount} records total)`, 'success');
@@ -339,7 +411,7 @@ class EDIFileManager {
         // Update the footer line
         const updatedLines = lines.map(line => {
             const trimmedLine = line.trim();
-            if (trimmedLine.startsWith('$EOF')) {
+            if (trimmedLine.startsWith('$$EOF')) {
                 const eofBase = line.substring(0, line.length - 7);
                 return `${eofBase}${importCount.toString().padStart(7, '0')}`;
             }
@@ -397,22 +469,22 @@ class EDIFileManager {
         // Find header and footer lines
         for (const line of lines) {
             const trimmedLine = line.trim();
-            if (trimmedLine.startsWith('$$HDR')) {
+            if (trimmedLine.startsWith('$HDR')) {
                 hdrLine = line;
             } else if (trimmedLine.startsWith('H1')) {
                 h1Line = line;
             } else if (trimmedLine.startsWith('H2')) {
                 h2Line = line;
-            } else if (trimmedLine.startsWith('$$EOF')) {
+            } else if (trimmedLine.startsWith('$EOF')) {
                 eofLine = line;
             }
         }
         
         // Validate required lines exist
-        if (!hdrLine) throw new Error('$$HDR line not found in file');
+        if (!hdrLine) throw new Error('$HDR line not found in file');
         if (!h1Line) throw new Error('H1 line not found in file');
         if (!h2Line) throw new Error('H2 line not found in file');
-        if (!eofLine) throw new Error('$$EOF line not found in file');
+        if (!eofLine) throw new Error('$EOF line not found in file');
         
         // Find detail lines (D1 records)
         const detailLines = lines.filter(line => line.trim().startsWith('D1'));
@@ -492,6 +564,8 @@ class EDIFileManager {
         
         if (type === 'cleaned') {
             fileData = this.cleanedFile;
+        } else if (type === 'rejection') {
+            fileData = this.rejectionFile;
         } else {
             fileData = this.splitFiles[type];
         }
@@ -530,12 +604,16 @@ class EDIFileManager {
         // Clear data
         this.splitFiles = { part1: null, part2: null };
         this.cleanedFile = null;
+        this.rejectionFile = null;
         this.currentFileContent = null;
         this.currentFileName = null;
         this.orders = [];
         this.ordersTableBody.innerHTML = '';
         this.orderSearch.value = '';
         this.selectAllOrders.checked = false;
+        this.rejectionReason.value = 'Order cancelled';
+        this.statusCode.value = 'IR';
+        this.generateRejectionFile.checked = true;
         
         // Reset to split mode
         document.getElementById('splitMode').checked = true;

@@ -99,15 +99,43 @@
                                         </tbody>
                                     </table>
                                 </div>
+                                
+                                <!-- Rejection Options -->
+                                <div class="mb-3">
+                                    <h6><i class="fas fa-edit me-2"></i>Rejection Details</h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label for="rejectionReason" class="form-label">Rejection Reason</label>
+                                            <input type="text" class="form-control" id="rejectionReason" value="Order cancelled" placeholder="Enter rejection reason...">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="statusCode" class="form-label">Status Code</label>
+                                            <select class="form-select" id="statusCode">
+                                                <option value="IR">IR - Item Rejected</option>
+                                                <option value="OC">OC - Order Cancelled</option>
+                                                <option value="NF">NF - Not Found</option>
+                                                <option value="OP">OP - Out of Print</option>
+                                                <option value="OS">OS - Out of Stock</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" id="generateRejectionFile" checked>
+                                        <label class="form-check-label" for="generateRejectionFile">
+                                            Generate PPO rejection file for removed orders
+                                        </label>
+                                    </div>
+                                </div>
+                                
                                 <div class="mt-3">
-                                    <button id="removeOrdersBtn" class="btn btn-warning w-100  mb-3" disabled>
-                                        <i class="fas fa-minus-circle me-3"></i>Remove Selected Orders
+                                    <button id="removeOrdersBtn" class="btn btn-warning w-100 mb-3" disabled>
+                                        <i class="fas fa-minus-circle me-2"></i>Remove Selected Orders
                                     </button>
                                 </div>
                             </div>
 
                             <button id="analyzeBtn" class="btn btn-info btn w-100" disabled>
-                                <i class="fas fa-search me-3"></i>Analyze File & Show Orders
+                                <i class="fas fa-search me-2"></i>Analyze File & Show Orders
                             </button>
                         </div>
 
@@ -148,11 +176,22 @@
                                 </div>
                             </div>
                             <div id="removeResults" style="display: none;">
-                                <button id="downloadCleaned" class="btn btn-outline-success w-100 mb-3">
-                                    <i class="fas fa-file-download me-2"></i>
-                                    Download Cleaned File
-                                    <br><small class="text-muted" id="cleanedInfo"></small>
-                                </button>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <button id="downloadCleaned" class="btn btn-outline-success w-100">
+                                            <i class="fas fa-file-download me-2"></i>
+                                            Download Cleaned EDI File
+                                            <br><small class="text-muted" id="cleanedInfo"></small>
+                                        </button>
+                                    </div>
+                                    <div class="col-md-6 mb-3" id="rejectionDownloadSection" style="display: none;">
+                                        <button id="downloadRejection" class="btn btn-outline-danger w-100">
+                                            <i class="fas fa-file-csv me-2"></i>
+                                            Download PPO Rejection File
+                                            <br><small class="text-muted" id="rejectionInfo"></small>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <button id="resetBtn" class="btn btn-secondary w-100 mt-2">
                                 <i class="fas fa-redo me-2"></i>Process Another File
@@ -163,7 +202,7 @@
                     <div class="card-footer text-muted">
                         <small>
                             <i class="fas fa-info-circle me-1"></i>
-                            This tool can split EDI files or remove specific orders while maintaining proper header and footer structure with correct record counts.
+                            This tool can split EDI files or remove specific orders while maintaining proper header and footer structure with correct record counts. Rejection files follow PPO format for order cancellation notifications.
                         </small>
                     </div>
                 </div>

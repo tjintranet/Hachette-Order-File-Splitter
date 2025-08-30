@@ -1,10 +1,10 @@
 # EDI File Manager Web Application
 
-A web-based tool for managing EDI (Electronic Data Interchange) order files with dual functionality: splitting files into equal parts or removing specific orders before processing.
+A web-based tool for managing EDI (Electronic Data Interchange) order files with dual functionality: splitting files into equal parts or removing specific orders before processing, with automated PPO rejection file generation.
 
 ## Overview
 
-This application allows users to upload EDI files and either split them into two separate files with equal numbers of detail records, or analyze and remove specific orders from the file. The tool ensures that each output file maintains the correct EDI format with proper headers, footers, and accurate record counts.
+This application allows users to upload EDI files and either split them into two separate files with equal numbers of detail records, or analyze and remove specific orders from the file. When orders are removed, the tool can automatically generate PPO (Purchase Order Position) rejection files for order cancellation notifications. The tool ensures that each output file maintains the correct EDI format with proper headers, footers, and accurate record counts.
 
 ## Features
 
@@ -21,13 +21,21 @@ This application allows users to upload EDI files and either split them into two
 - **Accurate Record Counts**: Footer counts include header lines plus detail records
 - **Dual Downloads**: Download both split files separately
 
-### Remove Orders Mode (New)
+### Remove Orders Mode (Enhanced)
 - **Order Analysis**: Scans file and displays all orders with statistics
 - **Order Search**: Real-time search to filter orders by order number
 - **Selective Removal**: Choose specific orders to remove via checkboxes
 - **Bulk Operations**: Select all visible orders or individual selection
 - **Clean File Generation**: Creates new file with selected orders removed
 - **Updated Record Counts**: Automatically adjusts footer counts after removal
+
+### PPO Rejection File Generation (New)
+- **Automatic PPO Creation**: Generates rejection files for removed orders
+- **Industry Standard Format**: CSV format following PPO conventions
+- **Configurable Rejection Details**: Customizable rejection reasons and status codes
+- **Intelligent ISBN Extraction**: Automatically extracts ISBN numbers from EDI records
+- **Timestamped Filenames**: Follows PPO.M{MMDDYYHHMM}.PPR naming convention
+- **Dual Output**: Downloads both cleaned EDI file and PPO rejection file
 
 ## File Structure
 
@@ -55,14 +63,15 @@ No server setup or additional dependencies required - runs entirely in the brows
 4. **Monitor Progress**: Watch the progress bar and status messages
 5. **Download**: Click the download buttons for each split file
 
-### Remove Orders Mode
+### Remove Orders Mode with PPO Generation
 1. **Select File**: Click "Select EDI File" and choose a .txt file
 2. **Choose Remove**: Select "Remove Orders" operation mode
 3. **Analyze**: Click "Analyze File & Show Orders" to scan the file
 4. **Search**: Use the search box to filter orders (optional)
-5. **Select**: Check the orders you want to remove
-6. **Remove**: Click "Remove Selected Orders"
-7. **Download**: Download the cleaned file with updated record counts
+5. **Configure Rejection**: Set rejection reason and status code
+6. **Select**: Check the orders you want to remove
+7. **Remove**: Click "Remove Selected Orders"
+8. **Download**: Download both the cleaned EDI file and PPO rejection file
 
 ### Reset Options
 - **Clear Button**: In header - resets entire application
@@ -109,6 +118,21 @@ The cleaned file contains:
 - All D1 records except those from removed orders
 - Updated footer with correct record count reflecting removed records
 
+### PPO Rejection File Output
+The PPO file contains:
+- CSV format with headers: order_number,record_number,isbn,status_code,rejection_reason
+- One row per removed D1 record
+- Automatically extracted ISBN numbers
+- Configurable status codes and rejection reasons
+- Filename format: PPO.M{MMDDYYHHMM}.PPR
+
+### PPO File Example
+```
+7000775823,00001,9781032803104,IR,Order cancelled
+7000775823,00002,9781032010113,IR,Order cancelled
+7000775823,00003,9780367821258,IR,Order cancelled
+```
+
 ### Record Count Calculation
 Footer count = Number of remaining D1 records + 2 (for H1 and H2 lines)
 
@@ -118,6 +142,26 @@ Footer count = Number of remaining D1 records + 2 (for H1 and H2 lines)
 
 **Remove Example**: If original file has 1078 D1 records and you remove 50:
 - Cleaned file: 1028 D1 records + 2 headers = 1030 total
+
+## PPO Rejection Configuration
+
+### Status Codes
+- **IR**: Item Rejected
+- **OC**: Order Cancelled  
+- **NF**: Not Found
+- **OP**: Out of Print
+- **OS**: Out of Stock
+
+### Rejection Reasons
+- Customizable text field
+- Default: "Order cancelled"
+- Common examples: "Out of stock", "Discontinued", "Price change required"
+
+### ISBN Extraction
+The system automatically extracts ISBN numbers from D1 lines using pattern matching:
+- **13-digit ISBNs**: Starting with 978 or 979
+- **10-digit ISBNs**: Traditional format with check digit
+- **Fallback**: Empty string if no valid ISBN pattern found
 
 ## Browser Compatibility
 
@@ -140,6 +184,7 @@ Requires support for:
 - **File Reading**: Uses FileReader API to process uploaded files
 - **Content Processing**: Identifies and processes D1 detail records by order number
 - **Order Analysis**: Extracts and groups orders for selective removal
+- **PPO Generation**: Creates industry-standard rejection files
 - **File Generation**: Creates properly formatted EDI output files
 - **Download Management**: Uses Blob API for file downloads
 
@@ -162,6 +207,11 @@ Requires support for:
 - `removeSelectedOrders()`: Filters out selected orders
 - `updateFooterCount()`: Recalculates record counts after removal
 
+#### PPO Generation Methods
+- `generatePPOFilename()`: Creates timestamped PPO filenames
+- `generatePPOContent()`: Creates CSV content for rejection file
+- `extractISBNFromLine()`: Intelligently extracts ISBN from EDI records
+
 #### Utility Methods
 - `filterOrders()`: Search functionality for order table
 - `toggleAllOrders()`: Select/deselect all visible orders
@@ -173,6 +223,7 @@ The application validates:
 - File format (.txt extension required)
 - EDI structure (presence of D1 records and required headers)
 - Order extraction and grouping
+- ISBN pattern recognition
 - File reading and processing errors
 - Empty selection validation for remove operations
 
@@ -198,6 +249,14 @@ Error messages are displayed with appropriate styling and icons.
 - Excluding orders that need special handling
 - Creating test files with specific order subsets
 - Quality control and data cleanup
+- Generating rejection notifications for cancelled orders
+
+### PPO File Use Cases
+- Automated order cancellation notifications
+- Supply chain communication
+- Inventory management integration
+- Customer service follow-up
+- Audit trail for rejected orders
 
 ## Limitations
 
@@ -206,6 +265,7 @@ Error messages are displayed with appropriate styling and icons.
 - Only supports text-based EDI files
 - Designed specifically for the EDI format structure shown
 - Order identification relies on consistent D1 line formatting
+- ISBN extraction uses pattern matching (may not catch all formats)
 
 ## Development
 
@@ -225,6 +285,9 @@ Common extensions might include:
 - Export order analysis to CSV
 - Order validation and duplicate detection
 - Custom order identification patterns
+- Additional PPO file formats
+- Email integration for rejection notifications
+- Advanced ISBN validation and formatting
 
 ## Troubleshooting
 
@@ -242,10 +305,15 @@ Common extensions might include:
 
 **Footer count incorrect**: Check that H1 and H2 lines are present in original file
 
+**PPO file empty**: Verify orders were selected and rejection file generation is enabled
+
+**ISBN extraction issues**: Check D1 line format - ISBNs should follow standard 10 or 13 digit patterns
+
 ## File Naming Conventions
 
 - **Split files**: `{original_name}_p1.txt` and `{original_name}_p2.txt`
 - **Cleaned files**: `{original_name}_cleaned.txt`
+- **PPO files**: `PPO.M{MMDDYYHHMM}.PPR` (timestamped)
 
 ## Data Processing Flow
 
@@ -261,8 +329,17 @@ Common extensions might include:
 2. Group D1 records by order number
 3. Display orders in interactive table
 4. Filter out selected orders
-5. Recalculate footer count
-6. Generate cleaned file
+5. Generate PPO rejection file (if enabled)
+6. Recalculate footer count
+7. Generate cleaned file
+
+### PPO Generation Flow
+1. Extract removed order details
+2. Parse D1 records for ISBN and record numbers
+3. Apply configured rejection reason and status code
+4. Generate CSV content with proper formatting
+5. Create timestamped filename
+6. Prepare file for download
 
 ## License
 
