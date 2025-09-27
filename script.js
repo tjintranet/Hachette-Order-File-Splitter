@@ -1,4 +1,4 @@
-// Enhanced EDI File Manager JavaScript with PPO Rejection File Generation
+// Enhanced EDI File Manager JavaScript with Auto-Analysis
 class EDIFileManager {
     constructor() {
         this.fileInput = document.getElementById('fileInput');
@@ -6,7 +6,6 @@ class EDIFileManager {
         this.splitModeSection = document.getElementById('splitModeSection');
         this.removeModeSection = document.getElementById('removeModeSection');
         this.splitBtn = document.getElementById('splitBtn');
-        this.analyzeBtn = document.getElementById('analyzeBtn');
         this.removeOrdersBtn = document.getElementById('removeOrdersBtn');
         this.progressContainer = document.getElementById('progressContainer');
         this.progressBar = document.getElementById('progressBar');
@@ -28,7 +27,6 @@ class EDIFileManager {
         this.ordersTableBody = document.getElementById('ordersTableBody');
         this.orderSearch = document.getElementById('orderSearch');
         this.selectAllOrders = document.getElementById('selectAllOrders');
-        this.rejectionReason = document.getElementById('rejectionReason');
         this.statusCode = document.getElementById('statusCode');
         this.generateRejectionFile = document.getElementById('generateRejectionFile');
         this.rejectionDownloadSection = document.getElementById('rejectionDownloadSection');
@@ -49,7 +47,6 @@ class EDIFileManager {
     initializeEventListeners() {
         this.fileInput.addEventListener('change', () => this.handleFileSelection());
         this.splitBtn.addEventListener('click', () => this.splitFile());
-        this.analyzeBtn.addEventListener('click', () => this.analyzeFile());
         this.removeOrdersBtn.addEventListener('click', () => this.removeSelectedOrders());
         this.downloadPart1.addEventListener('click', () => this.downloadFile('part1'));
         this.downloadPart2.addEventListener('click', () => this.downloadFile('part2'));
@@ -76,6 +73,12 @@ class EDIFileManager {
                     this.modeSelection.style.display = 'block';
                     this.updateButtonStates(true);
                     this.showStatus('File loaded successfully: ' + file.name, 'success');
+                    
+                    // Auto-analyze if in remove mode
+                    const currentMode = document.querySelector('input[name="operationMode"]:checked').value;
+                    if (currentMode === 'remove') {
+                        await this.analyzeFile();
+                    }
                 } catch (error) {
                     this.showStatus('Error reading file: ' + error.message, 'error');
                 }
@@ -96,13 +99,17 @@ class EDIFileManager {
         } else {
             this.splitModeSection.style.display = 'none';
             this.removeModeSection.style.display = 'block';
+            
+            // Auto-analyze if file is already loaded
+            if (this.currentFileContent) {
+                this.analyzeFile();
+            }
         }
         this.hideResults();
     }
 
     updateButtonStates(enabled) {
         this.splitBtn.disabled = !enabled;
-        this.analyzeBtn.disabled = !enabled;
     }
 
     showStatus(message, type = 'info') {
@@ -184,8 +191,6 @@ class EDIFileManager {
         lines.forEach((line, index) => {
             const trimmedLine = line.trim();
             if (trimmedLine.startsWith('D1')) {
-                // Extract order number from D1 line
-                // Format: D1{order_number}     {order_id}              {record_num}
                 const orderNumber = trimmedLine.substring(2).split(/\s+/)[0];
                 if (orderNumber) {
                     const orderId = orderNumber;
@@ -237,7 +242,6 @@ class EDIFileManager {
             this.ordersTableBody.appendChild(row);
         });
 
-        // Add event listeners to checkboxes
         document.querySelectorAll('.order-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', () => this.updateRemoveButton());
         });
@@ -296,31 +300,33 @@ class EDIFileManager {
     }
 
     extractISBNFromLine(line) {
-        // Try to extract ISBN from D1 line
-        // This is a best-guess approach based on common EDI patterns
         const parts = line.split(/\s+/);
         
-        // Look for 13-digit ISBN (most common)
         for (const part of parts) {
             if (/^97[89]\d{10}$/.test(part)) {
                 return part;
             }
         }
         
-        // Look for 10-digit ISBN
         for (const part of parts) {
             if (/^\d{9}[\dX]$/.test(part)) {
                 return part;
             }
         }
         
-        // If no ISBN pattern found, return a placeholder or empty string
         return '';
     }
 
     generatePPOContent(removedOrders) {
-        const rejectionReason = this.rejectionReason.value || 'Order cancelled';
         const statusCode = this.statusCode.value || 'IR';
+        const statusDescriptions = {
+            'IR': 'Item template not found',
+            'CO': 'Item Cancelled',
+            'NF': 'Not Found',
+            'OP': 'Out of Print',
+            'OS': 'Out of Stock'
+        };
+        const rejectionReason = statusDescriptions[statusCode] || statusCode;
         
         let csvContent = '';
         
@@ -353,7 +359,6 @@ class EDIFileManager {
 
             this.showProgress(50);
 
-            // Filter out lines belonging to selected orders
             lines.forEach(line => {
                 const trimmedLine = line.trim();
                 if (trimmedLine.startsWith('D1')) {
@@ -371,16 +376,13 @@ class EDIFileManager {
 
             this.showProgress(75);
 
-            // Update the footer with new count
             const newContent = this.updateFooterCount(cleanedLines);
             
-            // Create cleaned EDI file
             this.cleanedFile = {
                 blob: new Blob([newContent], { type: 'text/plain' }),
-                filename: this.currentFileName.replace(/\.txt$/i, '')
+                filename: this.currentFileName.replace(/\.txt$/i, '') + '_cleaned.txt'
             };
 
-            // Generate PPO rejection file if enabled
             if (this.generateRejectionFile.checked) {
                 const ppoContent = this.generatePPOContent(removedOrders);
                 this.rejectionFile = {
@@ -403,12 +405,10 @@ class EDIFileManager {
     }
 
     updateFooterCount(lines) {
-        // Count all non-empty lines except the EOF line itself, then subtract 1 more for the import application
         const nonEmptyLines = lines.filter(line => line.trim() !== '');
-        const totalLineCount = nonEmptyLines.length - 1; // -1 to exclude the EOF line from the count
-        const importCount = totalLineCount - 1; // -1 more for the import application requirement
+        const totalLineCount = nonEmptyLines.length - 1;
+        const importCount = totalLineCount - 1;
 
-        // Update the footer line
         const updatedLines = lines.map(line => {
             const trimmedLine = line.trim();
             if (trimmedLine.startsWith('$$EOF')) {
@@ -427,7 +427,6 @@ class EDIFileManager {
         this.resultsContainer.style.display = 'block';
     }
 
-    // Original split functionality
     async splitFile() {
         if (!this.currentFileContent) {
             this.showStatus('Please select a file first', 'error');
@@ -460,13 +459,11 @@ class EDIFileManager {
     splitEDIFile(content, originalFilename) {
         const lines = content.split(/\r?\n/);
         
-        // Extract header lines from original file
         let hdrLine = '';
         let h1Line = '';
         let h2Line = '';
         let eofLine = '';
         
-        // Find header and footer lines
         for (const line of lines) {
             const trimmedLine = line.trim();
             if (trimmedLine.startsWith('$HDR')) {
@@ -480,35 +477,31 @@ class EDIFileManager {
             }
         }
         
-        // Validate required lines exist
         if (!hdrLine) throw new Error('$HDR line not found in file');
         if (!h1Line) throw new Error('H1 line not found in file');
         if (!h2Line) throw new Error('H2 line not found in file');
         if (!eofLine) throw new Error('$EOF line not found in file');
         
-        // Find detail lines (D1 records)
         const detailLines = lines.filter(line => line.trim().startsWith('D1'));
         
         if (detailLines.length === 0) {
             throw new Error('No D1 detail records found in the file');
         }
 
-        // Calculate split point
         const totalDetails = detailLines.length;
         const splitPoint = Math.floor(totalDetails / 2);
         
         const part1Details = detailLines.slice(0, splitPoint);
         const part2Details = detailLines.slice(splitPoint);
 
-        // Generate file contents with original headers
         const part1Content = this.generateEDIContent(part1Details, hdrLine, h1Line, h2Line, eofLine);
         const part2Content = this.generateEDIContent(part2Details, hdrLine, h1Line, h2Line, eofLine);
 
         return {
             part1Content,
             part2Content,
-            part1Count: part1Details.length + 2, // +2 for H1 and H2 lines
-            part2Count: part2Details.length + 2, // +2 for H1 and H2 lines
+            part1Count: part1Details.length + 2,
+            part2Count: part2Details.length + 2,
             originalFilename
         };
     }
@@ -516,22 +509,18 @@ class EDIFileManager {
     generateEDIContent(detailLines, hdrLine, h1Line, h2Line, eofLine) {
         let content = '';
         
-        // Add original header lines
         content += hdrLine + '\n';
         content += h1Line + '\n';
         content += h2Line + '\n';
         
-        // Add detail lines
         detailLines.forEach(line => {
             content += line + '\n';
         });
         
-        // Count all content lines (excluding the EOF line we're about to add), then subtract 1 for import application
         const contentLines = content.split('\n').filter(line => line.trim() !== '');
-        const importCount = contentLines.length - 1; // -1 for import application requirement
+        const importCount = contentLines.length - 1;
         
-        // Generate footer based on original EOF line but with updated count
-        const eofBase = eofLine.substring(0, eofLine.length - 7); // Remove last 7 digits
+        const eofBase = eofLine.substring(0, eofLine.length - 7);
         content += `${eofBase}${importCount.toString().padStart(7, '0')}\n`;
         
         return content;
@@ -540,7 +529,6 @@ class EDIFileManager {
     generateSplitFiles(part1Content, part2Content, originalFilename) {
         const baseName = originalFilename.replace(/\.txt$/i, '');
         
-        // Create blobs for download
         this.splitFiles.part1 = {
             blob: new Blob([part1Content], { type: 'text/plain' }),
             filename: `${baseName}_p1.txt`
@@ -588,20 +576,16 @@ class EDIFileManager {
     }
 
     reset() {
-        // Reset form
         this.fileInput.value = '';
         this.updateButtonStates(false);
         
-        // Hide sections
         this.modeSelection.style.display = 'none';
         this.orderAnalysis.style.display = 'none';
         this.hideResults();
         this.hideProgress();
         
-        // Clear status
         this.statusContainer.innerHTML = '';
         
-        // Clear data
         this.splitFiles = { part1: null, part2: null };
         this.cleanedFile = null;
         this.rejectionFile = null;
@@ -611,11 +595,9 @@ class EDIFileManager {
         this.ordersTableBody.innerHTML = '';
         this.orderSearch.value = '';
         this.selectAllOrders.checked = false;
-        this.rejectionReason.value = 'Order cancelled';
         this.statusCode.value = 'IR';
         this.generateRejectionFile.checked = true;
         
-        // Reset to split mode
         document.getElementById('splitMode').checked = true;
         this.switchMode();
         
@@ -623,7 +605,6 @@ class EDIFileManager {
     }
 }
 
-// Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     new EDIFileManager();
 });
