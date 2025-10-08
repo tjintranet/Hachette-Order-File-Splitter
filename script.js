@@ -466,7 +466,7 @@ class EDIFileManager {
         
         for (const line of lines) {
             const trimmedLine = line.trim();
-            if (trimmedLine.startsWith('$HDR')) {
+            if (trimmedLine.startsWith('$$HDR')) {
                 hdrLine = line;
             } else if (trimmedLine.startsWith('H1')) {
                 h1Line = line;
@@ -477,7 +477,7 @@ class EDIFileManager {
             }
         }
         
-        if (!hdrLine) throw new Error('$HDR line not found in file');
+        if (!hdrLine) throw new Error('$$HDR line not found in file');
         if (!h1Line) throw new Error('H1 line not found in file');
         if (!h2Line) throw new Error('H2 line not found in file');
         if (!eofLine) throw new Error('$EOF line not found in file');
