@@ -472,7 +472,7 @@ class EDIFileManager {
                 h1Line = line;
             } else if (trimmedLine.startsWith('H2')) {
                 h2Line = line;
-            } else if (trimmedLine.startsWith('$EOF')) {
+            } else if (trimmedLine.startsWith('$$EOF')) {
                 eofLine = line;
             }
         }
@@ -480,7 +480,7 @@ class EDIFileManager {
         if (!hdrLine) throw new Error('$$HDR line not found in file');
         if (!h1Line) throw new Error('H1 line not found in file');
         if (!h2Line) throw new Error('H2 line not found in file');
-        if (!eofLine) throw new Error('$EOF line not found in file');
+        if (!eofLine) throw new Error('$$EOF line not found in file');
         
         const detailLines = lines.filter(line => line.trim().startsWith('D1'));
         
