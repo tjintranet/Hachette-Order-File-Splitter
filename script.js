@@ -1,26 +1,16 @@
-// Enhanced EDI File Manager JavaScript with Auto-Analysis
-class EDIFileManager {
+// EDI Order Removal Tool JavaScript
+class EDIOrderRemovalTool {
     constructor() {
         this.fileInput = document.getElementById('fileInput');
-        this.modeSelection = document.getElementById('modeSelection');
-        this.splitModeSection = document.getElementById('splitModeSection');
-        this.removeModeSection = document.getElementById('removeModeSection');
-        this.splitBtn = document.getElementById('splitBtn');
         this.removeOrdersBtn = document.getElementById('removeOrdersBtn');
         this.progressContainer = document.getElementById('progressContainer');
         this.progressBar = document.getElementById('progressBar');
         this.statusContainer = document.getElementById('statusContainer');
         this.resultsContainer = document.getElementById('resultsContainer');
-        this.splitResults = document.getElementById('splitResults');
-        this.removeResults = document.getElementById('removeResults');
-        this.downloadPart1 = document.getElementById('downloadPart1');
-        this.downloadPart2 = document.getElementById('downloadPart2');
         this.downloadCleaned = document.getElementById('downloadCleaned');
         this.downloadRejection = document.getElementById('downloadRejection');
         this.resetBtn = document.getElementById('resetBtn');
         this.clearBtn = document.getElementById('clearBtn');
-        this.part1Info = document.getElementById('part1Info');
-        this.part2Info = document.getElementById('part2Info');
         this.cleanedInfo = document.getElementById('cleanedInfo');
         this.rejectionInfo = document.getElementById('rejectionInfo');
         this.orderAnalysis = document.getElementById('orderAnalysis');
@@ -31,10 +21,6 @@ class EDIFileManager {
         this.generateRejectionFile = document.getElementById('generateRejectionFile');
         this.rejectionDownloadSection = document.getElementById('rejectionDownloadSection');
 
-        this.splitFiles = {
-            part1: null,
-            part2: null
-        };
         this.cleanedFile = null;
         this.rejectionFile = null;
         this.currentFileContent = null;
@@ -46,21 +32,13 @@ class EDIFileManager {
 
     initializeEventListeners() {
         this.fileInput.addEventListener('change', () => this.handleFileSelection());
-        this.splitBtn.addEventListener('click', () => this.splitFile());
         this.removeOrdersBtn.addEventListener('click', () => this.removeSelectedOrders());
-        this.downloadPart1.addEventListener('click', () => this.downloadFile('part1'));
-        this.downloadPart2.addEventListener('click', () => this.downloadFile('part2'));
         this.downloadCleaned.addEventListener('click', () => this.downloadFile('cleaned'));
         this.downloadRejection.addEventListener('click', () => this.downloadFile('rejection'));
         this.resetBtn.addEventListener('click', () => this.reset());
         this.clearBtn.addEventListener('click', () => this.reset());
         this.orderSearch.addEventListener('input', () => this.filterOrders());
         this.selectAllOrders.addEventListener('change', () => this.toggleAllOrders());
-
-        // Mode selection
-        document.querySelectorAll('input[name="operationMode"]').forEach(radio => {
-            radio.addEventListener('change', () => this.switchMode());
-        });
     }
 
     async handleFileSelection() {
@@ -70,46 +48,15 @@ class EDIFileManager {
                 this.currentFileName = file.name;
                 try {
                     this.currentFileContent = await this.readFileContent(file);
-                    this.modeSelection.style.display = 'block';
-                    this.updateButtonStates(true);
                     this.showStatus('File loaded successfully: ' + file.name, 'success');
-                    
-                    // Auto-analyze if in remove mode
-                    const currentMode = document.querySelector('input[name="operationMode"]:checked').value;
-                    if (currentMode === 'remove') {
-                        await this.analyzeFile();
-                    }
+                    await this.analyzeFile();
                 } catch (error) {
                     this.showStatus('Error reading file: ' + error.message, 'error');
                 }
             } else {
                 this.showStatus('Please select a .txt file', 'warning');
-                this.updateButtonStates(false);
-            }
-        } else {
-            this.updateButtonStates(false);
-        }
-    }
-
-    switchMode() {
-        const mode = document.querySelector('input[name="operationMode"]:checked').value;
-        if (mode === 'split') {
-            this.splitModeSection.style.display = 'block';
-            this.removeModeSection.style.display = 'none';
-        } else {
-            this.splitModeSection.style.display = 'none';
-            this.removeModeSection.style.display = 'block';
-            
-            // Auto-analyze if file is already loaded
-            if (this.currentFileContent) {
-                this.analyzeFile();
             }
         }
-        this.hideResults();
-    }
-
-    updateButtonStates(enabled) {
-        this.splitBtn.disabled = !enabled;
     }
 
     showStatus(message, type = 'info') {
@@ -139,8 +86,6 @@ class EDIFileManager {
 
     hideResults() {
         this.resultsContainer.style.display = 'none';
-        this.splitResults.style.display = 'none';
-        this.removeResults.style.display = 'none';
         this.rejectionDownloadSection.style.display = 'none';
     }
 
@@ -423,127 +368,6 @@ class EDIFileManager {
 
     showCleanedResults(removedRecordCount) {
         this.cleanedInfo.textContent = `${removedRecordCount} records removed`;
-        this.removeResults.style.display = 'block';
-        this.resultsContainer.style.display = 'block';
-    }
-
-    async splitFile() {
-        if (!this.currentFileContent) {
-            this.showStatus('Please select a file first', 'error');
-            return;
-        }
-
-        try {
-            this.showStatus('Reading file...', 'info');
-            this.showProgress(10);
-
-            this.showProgress(30);
-            this.showStatus('Processing EDI file...', 'info');
-            const result = this.splitEDIFile(this.currentFileContent, this.currentFileName);
-            this.showProgress(70);
-
-            this.showStatus('Generating download files...', 'info');
-            this.generateSplitFiles(result.part1Content, result.part2Content, this.currentFileName);
-            this.showProgress(100);
-
-            this.showStatus(`File split successfully! Part 1: ${result.part1Count} records, Part 2: ${result.part2Count} records`, 'success');
-            this.hideProgress();
-            this.showSplitResults(result.part1Count, result.part2Count);
-
-        } catch (error) {
-            this.showStatus('Error processing file: ' + error.message, 'error');
-            this.hideProgress();
-        }
-    }
-
-    splitEDIFile(content, originalFilename) {
-        const lines = content.split(/\r?\n/);
-        
-        let hdrLine = '';
-        let h1Line = '';
-        let h2Line = '';
-        let eofLine = '';
-        
-        for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (trimmedLine.startsWith('$$HDR')) {
-                hdrLine = line;
-            } else if (trimmedLine.startsWith('H1')) {
-                h1Line = line;
-            } else if (trimmedLine.startsWith('H2')) {
-                h2Line = line;
-            } else if (trimmedLine.startsWith('$$EOF')) {
-                eofLine = line;
-            }
-        }
-        
-        if (!hdrLine) throw new Error('$$HDR line not found in file');
-        if (!h1Line) throw new Error('H1 line not found in file');
-        if (!h2Line) throw new Error('H2 line not found in file');
-        if (!eofLine) throw new Error('$$EOF line not found in file');
-        
-        const detailLines = lines.filter(line => line.trim().startsWith('D1'));
-        
-        if (detailLines.length === 0) {
-            throw new Error('No D1 detail records found in the file');
-        }
-
-        const totalDetails = detailLines.length;
-        const splitPoint = Math.floor(totalDetails / 2);
-        
-        const part1Details = detailLines.slice(0, splitPoint);
-        const part2Details = detailLines.slice(splitPoint);
-
-        const part1Content = this.generateEDIContent(part1Details, hdrLine, h1Line, h2Line, eofLine);
-        const part2Content = this.generateEDIContent(part2Details, hdrLine, h1Line, h2Line, eofLine);
-
-        return {
-            part1Content,
-            part2Content,
-            part1Count: part1Details.length + 2,
-            part2Count: part2Details.length + 2,
-            originalFilename
-        };
-    }
-
-    generateEDIContent(detailLines, hdrLine, h1Line, h2Line, eofLine) {
-        let content = '';
-        
-        content += hdrLine + '\n';
-        content += h1Line + '\n';
-        content += h2Line + '\n';
-        
-        detailLines.forEach(line => {
-            content += line + '\n';
-        });
-        
-        const contentLines = content.split('\n').filter(line => line.trim() !== '');
-        const importCount = contentLines.length - 1;
-        
-        const eofBase = eofLine.substring(0, eofLine.length - 7);
-        content += `${eofBase}${importCount.toString().padStart(7, '0')}\n`;
-        
-        return content;
-    }
-
-    generateSplitFiles(part1Content, part2Content, originalFilename) {
-        const baseName = originalFilename.replace(/\.txt$/i, '');
-        
-        this.splitFiles.part1 = {
-            blob: new Blob([part1Content], { type: 'text/plain' }),
-            filename: `${baseName}_p1.txt`
-        };
-        
-        this.splitFiles.part2 = {
-            blob: new Blob([part2Content], { type: 'text/plain' }),
-            filename: `${baseName}_p2.txt`
-        };
-    }
-
-    showSplitResults(part1Count, part2Count) {
-        this.part1Info.textContent = `${part1Count} total lines`;
-        this.part2Info.textContent = `${part2Count} total lines`;
-        this.splitResults.style.display = 'block';
         this.resultsContainer.style.display = 'block';
     }
 
@@ -554,8 +378,6 @@ class EDIFileManager {
             fileData = this.cleanedFile;
         } else if (type === 'rejection') {
             fileData = this.rejectionFile;
-        } else {
-            fileData = this.splitFiles[type];
         }
         
         if (!fileData) {
@@ -577,16 +399,13 @@ class EDIFileManager {
 
     reset() {
         this.fileInput.value = '';
-        this.updateButtonStates(false);
         
-        this.modeSelection.style.display = 'none';
         this.orderAnalysis.style.display = 'none';
         this.hideResults();
         this.hideProgress();
         
         this.statusContainer.innerHTML = '';
         
-        this.splitFiles = { part1: null, part2: null };
         this.cleanedFile = null;
         this.rejectionFile = null;
         this.currentFileContent = null;
@@ -598,13 +417,10 @@ class EDIFileManager {
         this.statusCode.value = 'IR';
         this.generateRejectionFile.checked = true;
         
-        document.getElementById('splitMode').checked = true;
-        this.switchMode();
-        
         this.showStatus('Ready to process a new file', 'info');
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    new EDIFileManager();
+    new EDIOrderRemovalTool();
 });
